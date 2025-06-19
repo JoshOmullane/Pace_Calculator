@@ -9,20 +9,694 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <link rel="apple-touch-icon" href="icons/icon-192.png" />
-  <script>
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', function() {
-        navigator.serviceWorker.register('service-worker.js').then(function(registration) {
-          console.log('ServiceWorker registration successful with scope: ', registration.scope);
-        }, function(err) {
-          console.log('ServiceWorker registration failed: ', err);
-        });
-      });
+  <style>
+    :root {
+      --label-font-color: #004830;
+      --input-bg: #fff;
+      --container-bg: #D8E4BC;
+      --container-border: #a4b885;
+      --body-bg: #f2f2f2;
+      --result-onpace: black;
+      --result-behind: red;
+      --result-ahead: green;
+      --toggle-bg: #ccc;
+      --toggle-bg-active: #6c9a32;
     }
-  </script>
+
+    body {
+      font-family: 'Helvetica Neue', Arial, sans-serif;
+      background-color: var(--body-bg);
+      padding: 20px;
+      max-width: 500px;
+      margin: auto;
+      position: relative;
+      min-height: 100vh;
+      padding-bottom: 150px;
+      color: var(--label-font-color);
+    }
+
+    /* Clock */
+    #currentTime {
+      font-family: 'Orbitron', monospace;
+      font-weight: 300;
+      font-size: 1.5em;
+      text-align: center;
+      margin-bottom: 10px;
+      color: #007bff;
+      user-select: none;
+      letter-spacing: 0.1em;
+    }
+
+    h2 {
+      text-align: center;
+      margin-top: 0;
+    }
+
+    .input-group {
+      background-color: var(--container-bg);
+      border-radius: 25px;
+      padding: 10px 20px;
+      margin-top: 15px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .input-group label {
+      font-weight: bold;
+      color: var(--label-font-color);
+      margin-bottom: 5px;
+      user-select: none;
+    }
+
+    .input-group input,
+    .input-group select,
+    .input-group textarea {
+      background-color: var(--input-bg);
+      border: 1px solid var(--container-border);
+      border-radius: 8px;
+      padding: 10px;
+      font-size: 16px;
+      font-family: inherit;
+      color: black;
+      outline: none;
+      transition: border-color 0.3s ease;
+    }
+
+    .input-group input:focus,
+    .input-group select:focus,
+    .input-group textarea:focus {
+      border-color: #6c9a32;
+      box-shadow: none;
+    }
+
+    button {
+      width: 100%;
+      padding: 10px;
+      margin-top: 20px;
+      margin-bottom: 15px;
+      font-size: 16px;
+      background-color: #007bff;
+      color: white;
+      border: none;
+      cursor: pointer;
+      border-radius: 8px;
+      transition: background-color 0.3s ease;
+    }
+
+    button:hover {
+      background-color: #0056b3;
+    }
+
+    .result {
+      text-align: center;
+      font-size: 1.5em;
+      font-weight: bold;
+      padding: 20px;
+      border-radius: 5px;
+    }
+
+    .result.onpace { color: var(--result-onpace); }
+    .result.behind { color: var(--result-behind); }
+    .result.ahead { color: var(--result-ahead); }
+
+    #memoryBank {
+      margin-top: 30px;
+      border-top: 1px solid #ccc;
+      padding-top: 10px;
+    }
+
+    .memory-header {
+      cursor: pointer;
+      font-weight: bold;
+      text-align: center;
+      padding: 10px;
+      background-color: #ddd;
+      border-radius: 5px;
+    }
+
+    .memory-list {
+      display: none;
+      background-color: #fff;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      padding: 10px;
+      margin-top: 10px;
+    }
+
+    .memory-item {
+      padding: 5px 0;
+      border-bottom: 1px solid #eee;
+    }
+
+    .memory-item:last-child {
+      border-bottom: none;
+    }
+
+    .clear-button {
+      background-color: #dc3545;
+      margin-top: 10px;
+      width: 100%;
+      padding: 10px;
+      border: none;
+      color: white;
+      cursor: pointer;
+      border-radius: 8px;
+    }
+
+    /* Hideable Additional Options panel */
+    #additionalOptionsToggle {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      width: 50px;
+      height: 40px;
+      cursor: pointer;
+      user-select: none;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 100;
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    }
+
+    /* Hamburger icon: 3 stacked lines */
+    #additionalOptionsToggle div {
+      width: 30px;
+      height: 4px;
+      background-color: #007bff;
+      margin: 4px 0;
+      border-radius: 2px;
+      transition: 0.3s;
+    }
+
+    /* Additional Options panel */
+    #additionalOptionsPanel {
+      max-width: 500px;
+      margin: 0 auto;
+      padding: 15px 20px;
+      background: var(--container-bg);
+      border-radius: 12px;
+      box-sizing: border-box;
+      color: var(--label-font-color);
+      font-size: 14px;
+      position: fixed;
+      top: 70px;
+      right: 20px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+      display: none;
+      z-index: 99;
+    }
+
+    #additionalOptionsPanel label {
+      display: flex;
+      align-items: center;
+      margin-bottom: 12px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+
+    #additionalOptionsPanel label input[type="checkbox"] {
+      margin-right: 10px;
+      cursor: pointer;
+    }
+
+    #additionalOptionsPanel .darkModeToggleContainer {
+      margin-top: 20px;
+      border-top: 1px solid var(--container-border);
+      padding-top: 10px;
+    }
+
+    /* Show delay inputs on main page only if toggled */
+    #starterDelayInput,
+    #frostDelayInput {
+      display: none;
+    }
+
+    /* Memory bank note text area */
+    .memory-item textarea {
+      width: 100%;
+      margin-top: 5px;
+      padding: 8px;
+      font-family: inherit;
+      font-size: 14px;
+      border-radius: 5px;
+      border: 1px solid var(--container-border);
+      resize: vertical;
+      box-sizing: border-box;
+    }
+
+    .note-controls {
+      margin-top: 5px;
+      display: flex;
+      justify-content: flex-end;
+    }
+    .save-note-btn {
+      background-color: #6c9a32;
+      color: white;
+      border: none;
+      padding: 5px 10px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 0.9em;
+    }
+    .save-note-btn:hover {
+      background-color: #4e6a20;
+    }
+    .filter-container {
+      margin-top: 15px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .filter-container select, .filter-container input {
+      padding: 5px 10px;
+      border-radius: 5px;
+      font-size: 0.9em;
+      flex-grow: 1;
+      max-width: 180px;
+    }
+
+    /* Dark mode */
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --body-bg: #121a10;
+        --container-bg: #263823;
+        --container-border: #3f5b3c;
+        --label-font-color: #004830;
+        --input-bg: #fff;
+      }
+      body {
+        background-color: var(--body-bg);
+        color: var(--label-font-color);
+      }
+      #additionalOptionsToggle div {
+        background-color: #6c9a32;
+      }
+      button {
+        background-color: #6c9a32;
+      }
+      button:hover {
+        background-color: #4e6a20;
+      }
+    }
+
+    .memory-header.clickable {
+      cursor: pointer;
+      user-select: none;
+    }
+
+  </style>
 </head>
 <body>
-  <h1>⛳ Pace Calculator</h1>
-  <p>This is your offline-ready golf pace calculator web app.</p>
+
+  <div id="currentTime">00:00</div>
+
+  <h2>⛳ Pace Calculator</h2>
+
+  <div class="input-group">
+    <label for="groupName">Group Name:</label>
+    <input type="text" id="groupName" placeholder="e.g. Smith 4-ball" />
+  </div>
+
+  <div class="input-group">
+    <label for="timePerHole">Time per hole (mins):</label>
+    <select id="timePerHole"></select>
+  </div>
+
+  <!-- Starter delay input appears here if toggled on -->
+  <div class="input-group" id="starterDelayInput">
+    <label for="starterDelay">Starter's Delay (mins):</label>
+    <input type="number" id="starterDelay" min="0" placeholder="Enter starter's delay" />
+  </div>
+
+  <!-- Frost delay input appears here if toggled on -->
+  <div class="input-group" id="frostDelayInput">
+    <label for="frostDelay">Frost/Weather Delay (mins):</label>
+    <input type="number" id="frostDelay" min="0" placeholder="Enter frost/weather delay" />
+  </div>
+
+  <div class="input-group">
+    <label for="startTime">Starting Tee Time:</label>
+    <input type="time" id="startTime" required step="60" />
+  </div>
+
+  <div class="input-group">
+    <label for="currentHole">Current Hole:</label>
+    <input type="number" id="currentHole" min="1" max="18" required />
+  </div>
+
+  <button onclick="calculatePace()">Calculate Pace</button>
+
+  <div id="result" class="result"></div>
+
+  <div id="memoryBank">
+    <div class="filter-container">
+      <input type="text" id="searchInput" placeholder="Search by group or tee time..." oninput="renderMemoryBank()" />
+      <label for="filterSelect">Sort by:</label>
+      <select id="filterSelect" onchange="renderMemoryBank()">
+        <option value="time">Time Noted</option>
+        <option value="status">Pace Status</option>
+      </select>
+    </div>
+    <div id="memoryList"></div>
+    <button class="clear-button" onclick="clearMemory()">Clear Memory</button>
+  </div>
+
+  <!-- Hamburger icon toggle for additional options -->
+  <div id="additionalOptionsToggle" title="Toggle Additional Options" aria-label="Toggle Additional Options" role="button" tabindex="0" 
+    onclick="toggleAdditionalOptions()" onkeypress="if(event.key==='Enter') toggleAdditionalOptions()">
+    <div></div>
+    <div></div>
+    <div></div>
+  </div>
+
+  <div id="additionalOptionsPanel" aria-hidden="true">
+    <label>
+      <input type="checkbox" id="toggleStarterDelay" />
+      Use Starter's Delay
+    </label>
+    <label>
+      <input type="checkbox" id="toggleFrostDelay" />
+      Use Frost/Weather Delay
+    </label>
+
+    <div class="darkModeToggleContainer">
+      <label>
+        <input type="checkbox" id="darkModeToggle" />
+        Dark Mode
+      </label>
+    </div>
+  </div>
+
+  <footer>
+    Developed for course marshals — Keep the pace!
+  </footer>
+
+  <script>
+    // Populate time per hole select options 5 to 20
+    function populateTimeOptions() {
+      const select = document.getElementById("timePerHole");
+      for (let i = 5; i <= 20; i++) {
+        const option = document.createElement("option");
+        option.value = i;
+        option.textContent = i;
+        if (i === 12) option.selected = true;
+        select.appendChild(option);
+      }
+    }
+
+    // Live digital clock update every minute (show HH:MM)
+    function updateClock() {
+      const now = new Date();
+      let h = now.getHours();
+      let m = now.getMinutes();
+      if (h < 10) h = '0' + h;
+      if (m < 10) m = '0' + m;
+      document.getElementById("currentTime").textContent = `${h}:${m}`;
+    }
+
+    // Show/hide delay inputs on main page based on toggles in additional options
+    function setupDelayToggles() {
+      const starterToggle = document.getElementById("toggleStarterDelay");
+      const frostToggle = document.getElementById("toggleFrostDelay");
+
+      const starterInput = document.getElementById("starterDelayInput");
+      const frostInput = document.getElementById("frostDelayInput");
+
+      // Restore previous states from localStorage
+      const starterState = localStorage.getItem("starterDelayEnabled") === "true";
+      const frostState = localStorage.getItem("frostDelayEnabled") === "true";
+
+      starterToggle.checked = starterState;
+      frostToggle.checked = frostState;
+
+      starterInput.style.display = starterState ? "flex" : "none";
+      frostInput.style.display = frostState ? "flex" : "none";
+
+      starterToggle.addEventListener("change", () => {
+        starterInput.style.display = starterToggle.checked ? "flex" : "none";
+        localStorage.setItem("starterDelayEnabled", starterToggle.checked);
+      });
+
+      frostToggle.addEventListener("change", () => {
+        frostInput.style.display = frostToggle.checked ? "flex" : "none";
+        localStorage.setItem("frostDelayEnabled", frostToggle.checked);
+      });
+    }
+
+    // Toggle Additional Options panel visibility
+    function toggleAdditionalOptions() {
+      const panel = document.getElementById("additionalOptionsPanel");
+      const isVisible = panel.style.display === "block";
+      panel.style.display = isVisible ? "none" : "block";
+      panel.setAttribute("aria-hidden", isVisible);
+    }
+
+    // Dark mode toggle handler
+    function setupDarkModeToggle() {
+      const toggle = document.getElementById("darkModeToggle");
+      // Restore dark mode from localStorage
+      const darkModeOn = localStorage.getItem("darkMode") === "true";
+      toggle.checked = darkModeOn;
+      applyDarkMode(darkModeOn);
+
+      toggle.addEventListener("change", () => {
+        applyDarkMode(toggle.checked);
+        localStorage.setItem("darkMode", toggle.checked);
+      });
+    }
+
+    function applyDarkMode(enabled) {
+      if (enabled) {
+        document.documentElement.style.setProperty('--body-bg', '#121a10');
+        document.documentElement.style.setProperty('--container-bg', '#263823');
+        document.documentElement.style.setProperty('--container-border', '#3f5b3c');
+        document.documentElement.style.setProperty('--label-font-color', '#004830');
+        document.documentElement.style.setProperty('--input-bg', '#fff');
+      } else {
+        document.documentElement.style.setProperty('--body-bg', '#f2f2f2');
+        document.documentElement.style.setProperty('--container-bg', '#D8E4BC');
+        document.documentElement.style.setProperty('--container-border', '#a4b885');
+        document.documentElement.style.setProperty('--label-font-color', '#004830');
+        document.documentElement.style.setProperty('--input-bg', '#fff');
+      }
+    }
+
+    // Utility to pad zero for time display
+    function padZero(num) {
+      return num.toString().padStart(2, '0');
+    }
+
+    // Get note text for group if exists
+    function getNoteForGroup(group) {
+      let memory = JSON.parse(localStorage.getItem("paceMemory")) || [];
+      const entry = memory.find(e => e.group === group);
+      return entry ? entry.note : "";
+    }
+
+    // Save a new pace memory record or update existing
+    function savePaceMemory(entry) {
+      let memory = JSON.parse(localStorage.getItem("paceMemory")) || [];
+      const existingIndex = memory.findIndex(e => e.group === entry.group);
+      if (existingIndex !== -1) {
+        memory[existingIndex] = entry;
+      } else {
+        memory.push(entry);
+      }
+      localStorage.setItem("paceMemory", JSON.stringify(memory));
+    }
+
+    // Main pace calculation function with finish time announcement
+    function calculatePace() {
+      const groupName = document.getElementById("groupName").value.trim();
+      const timePerHole = parseInt(document.getElementById("timePerHole").value);
+      const startTime = document.getElementById("startTime").value;
+      const currentHole = parseInt(document.getElementById("currentHole").value);
+      const resultDiv = document.getElementById("result");
+
+      const starterDelayEnabled = document.getElementById("toggleStarterDelay").checked;
+      const frostDelayEnabled = document.getElementById("toggleFrostDelay").checked;
+
+      let starterDelay = 0;
+      if (starterDelayEnabled) {
+        starterDelay = parseInt(document.getElementById("starterDelay").value) || 0;
+      }
+
+      let frostDelay = 0;
+      if (frostDelayEnabled) {
+        frostDelay = parseInt(document.getElementById("frostDelay").value) || 0;
+      }
+
+      if (!groupName) {
+        alert("Please enter a group name.");
+        return;
+      }
+
+      if (!startTime) {
+        alert("Please enter a starting tee time.");
+        return;
+      }
+
+      if (isNaN(currentHole) || currentHole < 1 || currentHole > 18) {
+        alert("Please enter a valid current hole (1-18).");
+        return;
+      }
+
+      // Parse start time string to Date today at that time
+      const [startHour, startMin] = startTime.split(":").map(Number);
+      const now = new Date();
+      const startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), startHour, startMin, 0);
+
+      // Calculate expected elapsed time in minutes based on current hole and delays
+      const expectedMinutes = timePerHole * currentHole + starterDelay + frostDelay;
+
+      // Calculate current time difference in minutes from start time
+      const diffMinutes = Math.floor((now - startDate) / 60000);
+
+      // Calculate difference from expected pace
+      const paceDiff = diffMinutes - expectedMinutes;
+
+      // Determine status & color
+      let status = "onpace";
+      if (paceDiff > 1) status = "behind";
+      else if (paceDiff < -1) status = "ahead";
+
+      // Calculate time hole should be finished by (start time + expectedMinutes)
+      const finishDate = new Date(startDate.getTime() + expectedMinutes * 60000);
+      const finishHour = finishDate.getHours();
+      const finishMin = finishDate.getMinutes();
+      const finishTimeStr = `${padZero(finishHour)}:${padZero(finishMin)}`;
+
+      // Construct message based on status
+      const absDiff = Math.abs(paceDiff);
+      let diffText = "";
+      if (absDiff > 0) diffText = `${absDiff} min`;
+
+      let message = "";
+      if (status === "onpace" || status === "ahead") {
+        message = `${groupName} is ${status.toUpperCase()} ${diffText} — hole to be finished by ${finishTimeStr}`;
+      } else if (status === "behind") {
+        message = `${groupName} is BEHIND ${diffText} — hole should have been finished by ${finishTimeStr}`;
+      }
+
+      resultDiv.textContent = message;
+      resultDiv.className = `result ${status}`;
+
+      // Save this pace memory with timestamp HH:MM
+      const timeChecked = `${padZero(now.getHours())}:${padZero(now.getMinutes())}`;
+      savePaceMemory({
+        group: groupName,
+        timeChecked,
+        status,
+        diff: paceDiff,
+        hole: currentHole,
+        teeTime: startTime,
+        note: getNoteForGroup(groupName) || ""
+      });
+
+      renderMemoryBank();
+    }
+
+    // Render memory bank with filtering, sorting and note editing
+    function renderMemoryBank() {
+      const memoryList = document.getElementById("memoryList");
+      let memory = JSON.parse(localStorage.getItem("paceMemory")) || [];
+      const filter = document.getElementById("filterSelect").value;
+      const searchTerm = document.getElementById("searchInput").value.trim().toLowerCase();
+
+      // Filter by search term (group name or tee time)
+      if (searchTerm.length > 0) {
+        memory = memory.filter(entry =>
+          entry.group.toLowerCase().includes(searchTerm) ||
+          entry.teeTime.toLowerCase().includes(searchTerm)
+        );
+      }
+
+      // Sort memory based on filter selection
+      if (filter === "status") {
+        memory.sort((a, b) => a.status.localeCompare(b.status));
+      } else {
+        memory.sort((a, b) => new Date('1970/01/01 ' + a.timeChecked) - new Date('1970/01/01 ' + b.timeChecked));
+      }
+
+      if (memory.length === 0) {
+        memoryList.innerHTML = "<p>No saved pace checks.</p>";
+        return;
+      }
+
+      memoryList.innerHTML = "";
+      memory.forEach((entry, i) => {
+        const div = document.createElement("div");
+        div.className = "memory-item";
+
+        let paceClass = entry.status;
+        let colorDot = paceClass === 'behind' ? '🔴' : paceClass === 'ahead' ? '🟢' : '🔵';
+
+        div.innerHTML = `
+          <div class="memory-header clickable">
+            ${colorDot} <strong>${entry.group}</strong> — Hole ${entry.hole} — Tee Time: ${entry.teeTime} — ${entry.status.toUpperCase()} ${entry.diff !== 0 ? Math.abs(entry.diff) + ' min' : ''} ✏️
+          </div>
+          <div class="note-section" style="display:none;">
+            <textarea placeholder="Add notes..." rows="3">${entry.note || ''}</textarea>
+            <div class="note-controls">
+              <button class="save-note-btn">Save</button>
+            </div>
+          </div>
+        `;
+
+        const header = div.querySelector('.memory-header');
+        const noteSection = div.querySelector('.note-section');
+        const textarea = div.querySelector('textarea');
+        const saveBtn = div.querySelector('.save-note-btn');
+
+        header.addEventListener('click', () => {
+          const isVisible = noteSection.style.display === 'block';
+          noteSection.style.display = isVisible ? 'none' : 'block';
+        });
+
+        saveBtn.addEventListener('click', () => {
+          entry.note = textarea.value;
+          saveNote(i, entry.note);
+          noteSection.style.display = 'none';
+        });
+
+        memoryList.appendChild(div);
+      });
+    }
+
+    // Save note update in memory
+    function saveNote(index, note) {
+      let memory = JSON.parse(localStorage.getItem("paceMemory")) || [];
+      if (memory[index]) {
+        memory[index].note = note;
+        localStorage.setItem("paceMemory", JSON.stringify(memory));
+      }
+    }
+
+    // Clear all saved pace memory
+    function clearMemory() {
+      if (confirm("Clear all saved pace checks and notes?")) {
+        localStorage.removeItem("paceMemory");
+        renderMemoryBank();
+        document.getElementById("result").textContent = "";
+      }
+    }
+
+    // Initialization on page load
+    window.onload = () => {
+      populateTimeOptions();
+      updateClock();
+      setInterval(updateClock, 60000);
+      setupDelayToggles();
+      setupDarkModeToggle();
+      renderMemoryBank();
+    };
+  </script>
+
 </body>
 </html>
